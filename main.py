@@ -5,16 +5,10 @@ import numpy as np
 import screen_brightness_control as sbc
 from pycaw.pycaw import AudioUtilities
 
-# -----------------------------
-# 1. SYSTEM CONTROL SETUP
-# -----------------------------
 
 devices = AudioUtilities.GetSpeakers()
 volume_control = devices.EndpointVolume
 
-# -----------------------------
-# 2. MEDIAPIPE SETUP
-# -----------------------------
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
@@ -25,21 +19,14 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.7
 )
 
-# -----------------------------
-# 3. WEBCAM SETUP
-# -----------------------------
-
 cap = cv2.VideoCapture(0)
 width, height = 800, 600
 
-# Distance range for pinch gesture
 min_distance = 30
 max_distance = 200
 
-# Smoothing factor: smaller = smoother
 smoothing = 0.2
 
-# Start with estimated current levels
 try:
     current_brightness = sbc.get_brightness()[0]
 except Exception:
@@ -51,13 +38,9 @@ current_volume = int(
 
 smooth_level = None
 
-# Pause state and open-palm detection
 paused = False
 was_open_palm = False
 
-# -----------------------------
-# 4. DRAW PERCENTAGE BAR
-# -----------------------------
 
 def draw_bar(frame, x, y, label, value, color):
     bar_width = 300
@@ -96,10 +79,6 @@ def draw_bar(frame, x, y, label, value, color):
     )
 
 
-# -----------------------------
-# 5. MAIN LOOP
-# -----------------------------
-
 while True:
     success, frame = cap.read()
 
@@ -113,7 +92,6 @@ while True:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
 
-    # Header
     cv2.rectangle(frame, (0, 0), (width, 75), (35, 35, 35), -1)
 
     cv2.putText(
@@ -130,7 +108,6 @@ while True:
         0.55, (200, 200, 200), 1
     )
 
-    # Divide control zones
     cv2.line(
         frame, (width // 2, 85),
         (width // 2, height - 100),
@@ -159,7 +136,6 @@ while True:
             frame, hand, mp_hands.HAND_CONNECTIONS
         )
 
-        # Check whether four fingers are extended
         finger_tips = [8, 12, 16, 20]
         finger_pips = [6, 10, 14, 18]
 
@@ -170,14 +146,12 @@ while True:
 
         open_palm = extended_count == 4
 
-        # Toggle pause once per new open-palm gesture
         if open_palm and not was_open_palm:
             paused = not paused
             smooth_level = None
 
         was_open_palm = open_palm
 
-        # Thumb and index fingertips
         thumb = (
             int(lm[4].x * width),
             int(lm[4].y * height)
@@ -195,7 +169,6 @@ while True:
             index[1] - thumb[1]
         )
 
-        # Convert distance to a target percentage
         target_level = int(np.interp(
             distance,
             [min_distance, max_distance],
@@ -204,13 +177,12 @@ while True:
 
         target_level = max(0, min(100, target_level))
 
-        # Draw fingertip connection
         cv2.circle(frame, thumb, 10, (255, 0, 255), -1)
         cv2.circle(frame, index, 10, (255, 0, 255), -1)
         cv2.line(frame, thumb, index, (0, 255, 0), 3)
 
         if not paused and not open_palm:
-            # Smooth out abrupt changes
+        
             if smooth_level is None:
                 smooth_level = float(target_level)
             else:
@@ -222,7 +194,7 @@ while True:
             level = int(round(smooth_level))
 
             if center_x < width // 2:
-                # Brightness mode
+                
                 if abs(level - current_brightness) >= 2:
                     try:
                         sbc.set_brightness(level)
@@ -231,7 +203,7 @@ while True:
                         print("Brightness error:", e)
 
             else:
-                # Volume mode
+                
                 if abs(level - current_volume) >= 2:
                     try:
                         volume_control.SetMasterVolumeLevelScalar(
@@ -244,10 +216,6 @@ while True:
     else:
         was_open_palm = False
         smooth_level = None
-
-    # -----------------------------
-    # 6. DISPLAY BARS AND STATUS
-    # -----------------------------
 
     draw_bar(
         frame, 50, height - 75,
@@ -292,11 +260,7 @@ while True:
     if key == ord(" "):
         paused = not paused
         smooth_level = None
-
-# -----------------------------
-# 7. CLEANUP
-# -----------------------------
-
+        
 cap.release()
 hands.close()
 cv2.destroyAllWindows()
